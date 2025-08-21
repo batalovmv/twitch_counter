@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.local
+*.log
+# docker
+*.iml
+# ключи (не коммитить!)
+*.json
