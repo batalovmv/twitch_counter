@@ -20,6 +20,11 @@ class Config:
     ydb_endpoint: str
     ydb_database: str
 
+    # Live check
+    twitch_client_id: str
+    twitch_client_secret: str
+    live_poll_seconds: int
+
     @staticmethod
     def _int(name: str, default: int) -> int:
         try:
@@ -39,4 +44,7 @@ class Config:
             db_provider=os.getenv("DB_PROVIDER", "ydb").strip().lower(),
             ydb_endpoint=os.environ["YDB_ENDPOINT"].strip(),
             ydb_database=os.environ["YDB_DATABASE"].strip(),
+            twitch_client_id=os.environ["TWITCH_CLIENT_ID"].strip(),
+            twitch_client_secret=os.environ["TWITCH_CLIENT_SECRET"].strip(),
+            live_poll_seconds=Config._int("LIVE_POLL_SECONDS", 60),
         )

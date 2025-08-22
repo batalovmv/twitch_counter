@@ -4,3 +4,4 @@ python-dotenv==1.0.1
 uvloop==0.19.0; sys_platform != "win32"
 ydb
 requests
+aiohttp==3.9.5

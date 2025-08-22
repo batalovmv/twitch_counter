@@ -70,3 +70,8 @@ class StreamStatsBot(commands.Bot):
             return
         self.default_top_n = n
         await ctx.send(f"Топ по умолчанию теперь: {self.default_top_n}.")
+    @commands.command(name="live")
+    async def live_cmd(self, ctx: commands.Context):
+        # простая проверка через accrual.should_accrue()
+        state = "идёт" if self.accrual.should_accrue() else "выключен"
+        await ctx.send(f"Стрим сейчас {state}.")

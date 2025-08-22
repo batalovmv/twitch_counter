@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-
+from bot.services.live_state import TwitchLiveChecker
 try:
     import uvloop  # type: ignore
     uvloop.install()
@@ -51,10 +51,20 @@ async def _run() -> None:
     store = WatchtimeStoreYDB(endpoint=cfg.ydb_endpoint, database=cfg.ydb_database)
     await store.init()
 
+    # NEW: лайв-чекер
+    live_checker = TwitchLiveChecker(
+        client_id=cfg.twitch_client_id,
+        client_secret=cfg.twitch_client_secret,
+        channel_login=cfg.channel,
+        poll_seconds=cfg.live_poll_seconds,
+    )
+    await live_checker.start()
+
     accrual = AccrualService(
         store=store,
         tick_interval_sec=cfg.tick_interval_sec,
         active_window_sec=cfg.active_window_sec,
+        should_accrue=lambda: live_checker.is_live,
     )
 
     bot = StreamStatsBot(
@@ -70,6 +80,7 @@ async def _run() -> None:
         await bot.start()
     finally:
         await accrual.stop()
+        await live_checker.stop()
         await store.close()
 
 def main() -> None:
