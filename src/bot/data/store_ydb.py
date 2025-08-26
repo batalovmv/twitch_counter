@@ -13,11 +13,6 @@ CREATE TABLE IF NOT EXISTS watchtime (
   PRIMARY KEY (month, user)
 );
 """
-def _utf8(s: str):
-    return ydb.Value.make_utf8(str(s))
-
-def _u64(v: int):
-    return ydb.Value.make_uint64(int(v))
 
 def _esc(s: str) -> str:
     """Экранирует одинарные кавычки для YQL строк."""
@@ -52,7 +47,7 @@ class WatchtimeStoreYDB:
         await self.driver.wait(fail_fast=True, timeout=15)
         self.pool = ydb.aio.SessionPool(self.driver, size=5)
 
-        # ✅ checkout вместо acquire
+        # создаём схему
         async with self.pool.checkout() as s:
             await s.execute_scheme(SCHEMA_YQL)
 
@@ -114,22 +109,29 @@ class WatchtimeStoreYDB:
             rows = rs[0].rows
             return int(rows[0]["minutes"]) if rows else 0
 
-
-    async def get_top(self, month: str, n: int) -> list[tuple[str, int]]:
+    async def get_top(self, month: str, n: int, exclude: list[str] | None = None) -> list[tuple[str, int]]:
+        """Топ N за месяц, с возможностью исключить логины (бота, стримера и т.п.)."""
         assert self.pool is not None
         m = _esc(month)
         lim = max(1, min(50, int(n)))
+        ex = exclude or []
+        # нормализуем в нижний регистр и убираем пустые/дубли
+        ex_norm = sorted(set([e.lower() for e in ex if e]))
+        not_in = ""
+        if ex_norm:
+            ex_list = ", ".join(f"'{_esc(x)}'" for x in ex_norm)
+            not_in = f" AND user NOT IN ({ex_list})"
+
         async with self.pool.checkout() as s:
             tx = s.transaction(ydb.StaleReadOnly())
             rs = await tx.execute(
                 f"""
                 SELECT user, minutes
                 FROM watchtime
-                WHERE month = '{m}'
+                WHERE month = '{m}'{not_in}
                 ORDER BY minutes DESC, user ASC
                 LIMIT {lim};
                 """,
                 commit_tx=True,
             )
             return [(r["user"], int(r["minutes"])) for r in rs[0].rows]
-

@@ -22,6 +22,9 @@ class StreamStatsBot(commands.Bot):
         self.default_top_n = default_top_n
         self.store = store
         self.accrual = accrual
+        # нормализованные логины (нижний регистр)
+        self.bot_login = (nick or "").lower()
+        self.channel_login = (channel or "").lower()
 
     async def event_ready(self):
         log.info("Connected as %s", self.nick)
@@ -43,14 +46,16 @@ class StreamStatsBot(commands.Bot):
     async def top_cmd(self, ctx: commands.Context, n: int | None = None):
         n = max(1, min(50, n or self.default_top_n))
         mkey = month_key()
-        top = await self.store.get_top(mkey, n)
+        # исключаем из вывода стримера и бота
+        exclude = [self.channel_login, self.bot_login]
+        top = await self.store.get_top(mkey, n, exclude=exclude)
         if not top:
             await ctx.send("Пока нет данных за этот месяц.")
             return
         parts = [f"{i+1}) {user} — {fmt_minutes(minutes)}" for i, (user, minutes) in enumerate(top)]
         await ctx.send(f"Топ {n} за {mkey}: " + "; ".join(parts))
 
-    @commands.command(name="watchtime", aliases=["wt"])
+    @commands.command(name="time", aliases=["wt"])
     async def watchtime_cmd(self, ctx: commands.Context, nickname: str | None = None):
         user = nickname or (ctx.author.name if ctx.author else "")
         if not user:

@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 from bot.services.live_state import TwitchLiveChecker
+from src.bot.services.telegram_notifier import TelegramNotifier
 try:
     import uvloop  # type: ignore
     uvloop.install()
@@ -50,13 +51,27 @@ async def _run() -> None:
 
     store = WatchtimeStoreYDB(endpoint=cfg.ydb_endpoint, database=cfg.ydb_database)
     await store.init()
+    
+    tg_token = os.getenv("TG_BOT_TOKEN")
+    tg_chat = os.getenv("TG_CHAT_ID")
+    tg_mode = os.getenv("TG_PARSE_MODE", "HTML")
+    tg_disable_prev = os.getenv("TG_DISABLE_WEB_PAGE_PREVIEW", "1") == "1"
+    notifier: TelegramNotifier | None = None
+    if tg_token and tg_chat:
+        notifier = TelegramNotifier(tg_token, tg_chat, parse_mode=tg_mode, disable_preview=tg_disable_prev)
+        await notifier.start()
 
-    # NEW: лайв-чекер
+    # live checker с колбэком
+    async def _on_live_change(info):
+        if notifier:
+            await notifier.on_stream_update(info)
+
     live_checker = TwitchLiveChecker(
         client_id=cfg.twitch_client_id,
         client_secret=cfg.twitch_client_secret,
         channel_login=cfg.channel,
         poll_seconds=cfg.live_poll_seconds,
+        on_change=lambda info: asyncio.create_task(_on_live_change(info)),
     )
     await live_checker.start()
 
@@ -81,6 +96,8 @@ async def _run() -> None:
     finally:
         await accrual.stop()
         await live_checker.stop()
+        if notifier:
+            await notifier.stop()
         await store.close()
 
 def main() -> None:
